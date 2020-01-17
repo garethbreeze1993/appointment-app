@@ -36,8 +36,6 @@ class AppointmentSerializer(serializers.ModelSerializer):
     
     def update(self, instance, validated_data):
         times_data = validated_data.pop('times')
-        print(times_data)
-        print(instance.times.id)
         instance.filled = validated_data.get('filled', instance.filled)
         time_obj_id = times_data.get('id', instance.times.id)
         if instance.times.id != time_obj_id:

@@ -1,25 +1,11 @@
-'''
-from appointment_app.models import Times, Appointment
-from appointment_app.serializers import AppointmentSerializer,TimesSerializer
-from rest_framework import generics, permissions, viewsets
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from rest_framework.reverse import reverse
-from django.contrib.auth.models import User
 
-class AppointmentViewSet(viewsets.ModelViewSet):
-    queryset = Appointment.objects.all()
-    serializer_class = AppointmentSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]    
 
-    def perform_create(self, app_info):
-        app_info.save(client = self.request.user)
-'''
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from appointment_app.models import Times, Appointment
 from appointment_app.serializers import AppointmentSerializer,TimesSerializer
+from django.core.mail import send_mail
 
 @api_view(['GET', 'POST'])
 def appointment_list(request, format=None):
@@ -35,6 +21,11 @@ def appointment_list(request, format=None):
         serializer = AppointmentSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save(client_id = request.user.id)
+            send_mail('New Appointment',
+                      f"Hello {request.user.username} you have booked an appointment on {request.data['times']['date_start']} at {request.data['times']['time_start']}",
+                      'from@example.com',
+                      [f'{request.user.email}'],
+                      fail_silently=False)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
@@ -56,17 +47,42 @@ def appointment_detail(request, pk, format=None):
         serializer = AppointmentSerializer(appointment, data=request.data)
         if serializer.is_valid():
             serializer.save(client_id=request.user.id)
+            send_mail('Changed Appointment',
+                      f"Hello {request.user.username} you have changed your appointment from  {appointment.times.date_start} at {appointment.times.time_start} to {request.data['times']['date_start']} at {request.data['times']['time_start']}",
+                      'from@example.com',
+                      [f'{request.user.email}'],
+                      fail_silently=False)
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     elif request.method == 'DELETE':
+        send_mail('Deleted Appointment',
+                      f"Hello {request.user.username} you have deleted an appointment on {appointment.times.date_start} at {appointment.times.time_start}",
+                      'from@example.com',
+                      [f'{request.user.email}'],
+                      fail_silently=False)
         appointment.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)    
 
 
+'''
+request object on put method
+{'times': {'id': 1, 'time_start': '09:00:00', 'date_start': '2020-01-07'}, 'filled': False}
 
+1
 
 '''
+
+'''
+send_mail('New Appointment',
+                      f'Hello {request.user.username} you have booked an appointment on {request.data['times']['date_start']} at {request.data['times']['time_start']}',
+                      'from@example.com',
+                      [f'{request.user.email}'],
+                      fail_silently=False)
+'''
+
+'''
+https://docs.djangoproject.com/en/3.0/topics/email/
 example post request json object to send
  {
         "times": {
@@ -75,4 +91,9 @@ example post request json object to send
         },
         "filled": false
     }
+'''
+
+
+'''
+On Put method doesnt update client
 '''

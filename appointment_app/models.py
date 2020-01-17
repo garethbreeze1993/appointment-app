@@ -2,7 +2,10 @@ import datetime
 import pytz
 from django.db import models
 from django.contrib import auth # built in django stuff for accounts
+from django.contrib.auth.models import User
 from django.utils import timezone
+
+User._meta.get_field('email').blank = False
 
 CHOICES_TIME_START = (
     (datetime.time(9), datetime.time(9)),
@@ -43,7 +46,7 @@ class Times(models.Model):
 
 class Appointment(models.Model):
     times = models.OneToOneField(Times, on_delete=models.CASCADE, related_name='times')
-    filled = models.BooleanField(default=False)
+    filled = models.BooleanField(default=True)
     client = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='clients')
 
     
