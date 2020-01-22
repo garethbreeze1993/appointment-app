@@ -18,6 +18,10 @@ def setup_user():
     User = get_user_model() # call the django user model via the get_user_model method
     return User.objects.create_user('test', email='test_user@gmail.com', password='test_pass') # create a user so I can login so I can get around permissions
 
+def setup_user_2():
+    User = get_user_model() # call the django user model via the get_user_model method
+    return User.objects.create_user('new_user', email='new_user@gmail.com', password='new_pass') # create a user so I can login so I can get around permissions
+
 
 class AppointmentAppModelTests(TestCase):
     
@@ -53,14 +57,21 @@ class AppointmentAppViewTests(TestCase):
         self.appointment = Appointment.objects.create(times=self.time, client=self.user)
         
     def test_appointment_list_test_get_method(self):
+        self.client.login(username='test', password='test_pass')
         self.time_2 = Times.objects.create(time_start=datetime.time(11), date_start=datetime.date(2020, 1, 1))
         self.appointment_2 = Appointment.objects.create(times=self.time_2, client=self.user)
-        request = self.factory.get(self.uri) # call a get request object on api endpoint /appointment/
-        response = appointment_list(request)
+        response = self.client.get(self.uri) # call a get request object on api endpoint /appointment/
         self.assertEqual(response.status_code, 200, 'Expected Response Code 200, received {0} instead.'.format(response.status_code)) #<Response status_code=200, "text/html; charset=utf-8">
         self.assertEqual(len(response.data), 2) # should be 2 records one added in setup and 1 in test
         self.assertEqual(response.data[0].get('times')['date_start'], '2020-01-12')
         self.assertEqual(response.data[1].get('times')['date_start'], '2020-01-01')
+        
+    def test_appointment_list_test_get_method_not_authenticated_raise_403(self):
+        self.time_2 = Times.objects.create(time_start=datetime.time(11), date_start=datetime.date(2020, 1, 1))
+        self.appointment_2 = Appointment.objects.create(times=self.time_2, client=self.user)
+        request = self.factory.get(self.uri) # call a get request object on api endpoint /appointment/
+        response = appointment_list(request)
+        self.assertEqual(response.status_code, 403, 'Expected Response Code 403, received {0} instead.'.format(response.status_code)) 
         
     def test_appointment_list_test_post_method(self):
         self.client.login(username='test', password='test_pass')
@@ -77,19 +88,36 @@ class AppointmentAppViewTests(TestCase):
         self.assertTrue(response.data['filled'])
         self.assertEqual(response.data['client'], 'test')
         self.assertEqual(response.data['times']['time_end'], '2020-01-05T11:30:00Z')
+        
+    def test_appointment_list_test_post_method_not_authenticated_raise_403(self):
+        self.time_2 = Times.objects.create(time_start=datetime.time(11), date_start=datetime.date(2020, 1, 5))
+        self.json_string_appointment =  {
+        "times": {
+            "id": "2",
+            "time_start": "11:00:00",
+            "date_start": "2020-01-05"
+        }
+    }
+        response = self.client.post(self.uri, self.json_string_appointment, format='json') # call a post request object on api endpoint /appointment/
+        self.assertEqual(response.status_code, 403, 'Expected Response Code 201, received {0} instead.'.format(response.status_code))    
     
     def test_appointment_detail_test_get_method(self):
-        request = self.factory.get(self.uri_detail)
-        response = appointment_detail(request, pk=1)
+        self.client.login(username='test', password='test_pass')
+        response = self.client.get(self.uri_detail)
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data['filled'])
         self.assertEqual(response.data['client'], 'test')
         self.assertEqual(response.data['id'], 1)
         self.assertEqual(response.data['times']['time_end'], '2020-01-12T09:30:00Z')
         
-    def test_appointment_detail_hit_except_condition_raise_404_error(self):
+    def test_appointment_detail_test_get_method_not_authenticated_raise_403(self):
         request = self.factory.get(self.uri_detail)
-        response = appointment_detail(request, pk=21)
+        response = appointment_detail(request)
+        self.assertEqual(response.status_code, 403)    
+        
+    def test_appointment_detail_hit_except_condition_raise_404_error(self):
+        self.client.login(username='test', password='test_pass')
+        response = self.client.get('/appointments/21/')
         self.assertEqual(response.status_code, 404)
         
     def test_appointment_detail_test_delete_method(self):
@@ -97,7 +125,11 @@ class AppointmentAppViewTests(TestCase):
         response = self.client.delete(self.uri_detail)
         self.assertEqual(response.status_code, 204)
         self.assertIsNone(response.data)
-        
+     
+    def test_appointment_detail_test_delete_method_not_authenticated_raise_403(self):
+        response = self.client.delete(self.uri_detail)
+        self.assertEqual(response.status_code, 403)
+    
     def test_appointment_detail_test_put_method_time_filled_changed(self):    
         self.client.login(username='test', password='test_pass')
         self.time_2 = Times.objects.create(time_start=datetime.time(11), date_start=datetime.date(2020, 1, 5))
@@ -167,7 +199,43 @@ class AppointmentAppViewTests(TestCase):
         self.assertEqual(response.data['times']['time_start'], datetime.time(9, 0))
         self.assertEqual(response.data['times']['date_start'], '2020-01-12')
         self.assertEqual(response.data['times']['id'], 1)
+        
+    def test_appointment_detail_test_put_method_client_changed(self):
+        setup_user_2()
+        self.client.login(username='new_user', password='new_pass')
+        self.time_2 = Times.objects.create(time_start=datetime.time(11), date_start=datetime.date(2020, 1, 5))
 
+        self.json_string_appointment =  {
+        "id": "1",   
+        "times": {
+            "id": "1",
+            "time_start": "09:00:00",
+            "date_start": "2020-01-12"
+        },
+        "filled": "false"
+        }
+        response = self.client.put(self.uri_detail, self.json_string_appointment, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['client'], 'new_user')
+        
+        
+    def test_appointment_detail_test_put_not_authenticated_raise_403(self):    
+        self.time_2 = Times.objects.create(time_start=datetime.time(11), date_start=datetime.date(2020, 1, 5))
+
+        self.json_string_appointment =  {
+        "id": "1",   
+        "times": {
+            "id": "1",
+            "time_start": "09:00:00",
+            "date_start": "2020-01-12"
+        },
+        "filled": "false"
+        
+    }
+        response = self.client.put(self.uri_detail, self.json_string_appointment, format='json')
+        self.assertEqual(response.status_code, 403) 
+  
+             
 class AppointmentAppSerializerTests(TestCase):
     
     def setUp(self):

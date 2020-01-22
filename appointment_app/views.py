@@ -1,13 +1,19 @@
+import logging
 
-
+# Get an instance of a logger
+log = logging.getLogger(__name__)
+from django.conf import settings
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from appointment_app.models import Times, Appointment
+from appointment_app.permissions import IsOwnerOrReadOnly
 from appointment_app.serializers import AppointmentSerializer,TimesSerializer
 from django.core.mail import send_mail
 
 @api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
 def appointment_list(request, format=None):
     """
     List all code appointments, or create a new snippet.
@@ -30,6 +36,7 @@ def appointment_list(request, format=None):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 @api_view(['GET', 'PUT', 'DELETE'])
+@permission_classes([IsOwnerOrReadOnly, IsAuthenticated])
 def appointment_detail(request, pk, format=None):
     """
     Retrieve, update or delete a code appointment.
@@ -46,7 +53,7 @@ def appointment_detail(request, pk, format=None):
     elif request.method == 'PUT':
         serializer = AppointmentSerializer(appointment, data=request.data)
         if serializer.is_valid():
-            serializer.save(client_id=request.user.id)
+            serializer.save(client=request.user)
             send_mail('Changed Appointment',
                       f"Hello {request.user.username} you have changed your appointment from  {appointment.times.date_start} at {appointment.times.time_start} to {request.data['times']['date_start']} at {request.data['times']['time_start']}",
                       'from@example.com',
@@ -93,7 +100,3 @@ example post request json object to send
     }
 '''
 
-
-'''
-On Put method doesnt update client
-'''

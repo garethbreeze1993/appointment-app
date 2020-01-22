@@ -1,3 +1,7 @@
+import logging
+
+# Get an instance of a logger
+log = logging.getLogger(__name__)
 import datetime
 from django.utils import timezone
 from rest_framework import serializers
@@ -37,6 +41,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         times_data = validated_data.pop('times')
         instance.filled = validated_data.get('filled', instance.filled)
+        instance.client = validated_data.get('client', instance.client)
         time_obj_id = times_data.get('id', instance.times.id)
         if instance.times.id != time_obj_id:
             times_obj = Times.objects.get(id=times_data.get('id'))
